@@ -1,0 +1,30 @@
+sudo: required
+language: generic
+
+services:
+  - docker
+env:
+  global:
+    - SHA=$(git rev-parse HEAD)
+    - CLOUDSDK_CORE_DISABLE_PROMPTS=1
+
+before_install:
+  - openssl aes-256-cbc -K $encrypted_0c35eebf403c_key -iv $encrypted_0c35eebf403c_iv -in multi-k8s-service-account.json.enc -out multi-k8s-service-account.json -d
+  - curl https://sdk.cloud.google.com | bash > /dev/null;
+  - source $HOME/google-cloud-sdk/path.bash.inc
+  - gcloud components update kubectl
+  - gcloud auth activate-service-account --key-file multi-k8s-service-account.json
+  - gcloud config set project multi-k8s-229822
+  - gcloud config set compute/zone europe-west1-b
+  - gcloud container clusters get-credentials multi-cluster
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  - docker build -t jurglic/multi-k8s-test -f ./client/Dockerfile.dev ./client
+
+script:
+  - docker run jurglic/multi-k8s-test npm test -- --coverage
+
+deploy:
+  provider: script
+  script: bash ./deploy.sh
+  on:
+    branch: master
